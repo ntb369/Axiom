@@ -1,34 +1,56 @@
 import os
 import logging
 
+import streamlit as st
 from dotenv import load_dotenv
 from groq import Groq
 
 
-# Load environment variables from .env
+# --------------------------------------------------
+# Configuration
+# --------------------------------------------------
+
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-# Configuration
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+def get_secret(name, default=None):
+    """
+    Read configuration from Streamlit Cloud Secrets first,
+    then fall back to environment variables.
+    """
 
-MODEL_NAME = os.getenv(
+    try:
+        value = st.secrets.get(name)
+        if value:
+            return value
+    except Exception:
+        pass
+
+    return os.getenv(name, default)
+
+
+GROQ_API_KEY = get_secret("GROQ_API_KEY")
+
+MODEL_NAME = get_secret(
     "GROQ_MODEL",
-    "llama-3.3-70b-versatile"
+    "openai/gpt-oss-20b"
 )
 
 
 if not GROQ_API_KEY:
     raise RuntimeError(
         "GROQ_API_KEY is missing. "
-        "Add it to your .env file."
+        "Add it to Streamlit Cloud Secrets or your local .env file."
     )
 
 
-# Groq client
+# --------------------------------------------------
+# Groq Client
+# --------------------------------------------------
+
 client = Groq(
     api_key=GROQ_API_KEY,
     timeout=60.0,
@@ -36,9 +58,13 @@ client = Groq(
 )
 
 
+# --------------------------------------------------
+# AI Response Function
+# --------------------------------------------------
+
 def get_ai_response(messages):
     """
-    Send a conversation to Groq and return the response.
+    Send a conversation to Groq and return the AI response.
     """
 
     if not isinstance(messages, list):
@@ -95,18 +121,15 @@ def get_ai_response(messages):
     except Exception as error:
         logger.exception("Groq API request failed")
 
-        # Show the actual error in the Streamlit interface
-        import streamlit as st
-
-        st.error(
-            f"Groq API Error: {type(error).__name__}: {error}"
-        )
-
         return (
             "I could not connect to the Groq AI service. "
-            "Please check your API key, model name, and internet connection."
+            "Please check the API key, model name, and connection."
         )
 
+
+# --------------------------------------------------
+# Settings Helper
+# --------------------------------------------------
 
 def get_model_display_name():
     """
